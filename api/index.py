@@ -8,50 +8,41 @@ app = Flask(__name__)
 @app.route('/', defaults={'path': ''}, methods=['POST', 'OPTIONS'])
 @app.route('/<path:path>', methods=['POST', 'OPTIONS'])
 def catch_all(path):
-    # Handle the browser's "preflight" request
     if request.method == 'OPTIONS':
         response = app.make_response(('', 204))
-    
-    # Handle the actual data request
     elif request.method == 'POST':
         try:
             api_key = os.environ.get("OPENAI_API_KEY")
             if not api_key:
                 return jsonify({"error": "Server configuration error: API key missing."}), 500
-
+            
             data = request.get_json()
             if not data or 'prompt' not in data:
                 return jsonify({"error": "Bad request: 'prompt' field is missing."}), 400
             
             prompt = data.get("prompt")
-            
-            # Change model to GPT-4o for better structured data results
-            # It's better at following complex JSON instructions and has similar pricing.
             client = OpenAI(api_key=api_key)
+            
             completion = client.chat.completions.create(
-                model="gpt-4o-mini", 
+                model="gpt-4o-mini",
                 response_format={"type": "json_object"},
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant for a Spanish vocabulary tool. You must always respond with a valid JSON object. Do not add any extra commentary or text outside of the JSON object."},
+                    {"role": "system", "content": "You are a helpful assistant for a Spanish vocabulary tool. You must always respond with a valid JSON object. Do not add any extra commentary."},
                     {"role": "user", "content": prompt}
                 ]
             )
             
-            # Create a success response with the AI's content
             response_data = json.loads(completion.choices[0].message.content)
             response = jsonify(response_data)
             response.status_code = 200
 
         except Exception as e:
-            # Create an error response if something goes wrong
             response = jsonify({"error": "An internal server error occurred.", "details": str(e)})
             response.status_code = 500
     else:
-        # If not POST or OPTIONS, create a "Method Not Allowed" response
         response = jsonify(error="Method Not Allowed")
         response.status_code = 405
 
-    # Add the necessary permission headers to every response
     response.headers.set('Access-Control-Allow-Origin', '*')
     response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS')
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type')
