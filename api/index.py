@@ -8,12 +8,11 @@ app = Flask(__name__)
 @app.route('/', defaults={'path': ''}, methods=['POST', 'OPTIONS'])
 @app.route('/<path:path>', methods=['POST', 'OPTIONS'])
 def catch_all(path):
-    # --- Handle the browser's "preflight" request ---
+    # Handle the browser's "preflight" request
     if request.method == 'OPTIONS':
-        # Create an empty response for the browser's security check
         response = app.make_response(('', 204))
     
-    # --- Handle the actual data request ---
+    # Handle the actual data request
     elif request.method == 'POST':
         try:
             api_key = os.environ.get("OPENAI_API_KEY")
@@ -25,12 +24,15 @@ def catch_all(path):
                 return jsonify({"error": "Bad request: 'prompt' field is missing."}), 400
             
             prompt = data.get("prompt")
-            client = OpenAI(api_key=api_key)
             
+            # Change model to GPT-4o for better structured data results
+            # It's better at following complex JSON instructions and has similar pricing.
+            client = OpenAI(api_key=api_key)
             completion = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini", 
+                response_format={"type": "json_object"},
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant for a Spanish vocabulary tool. You must always respond with a valid JSON object."},
+                    {"role": "system", "content": "You are a helpful assistant for a Spanish vocabulary tool. You must always respond with a valid JSON object. Do not add any extra commentary or text outside of the JSON object."},
                     {"role": "user", "content": prompt}
                 ]
             )
@@ -49,9 +51,7 @@ def catch_all(path):
         response = jsonify(error="Method Not Allowed")
         response.status_code = 405
 
-    # ######################################################################
-    # ##  THIS IS THE FIX: Add the permission headers to every response   ##
-    # ######################################################################
+    # Add the necessary permission headers to every response
     response.headers.set('Access-Control-Allow-Origin', '*')
     response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS')
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type')
